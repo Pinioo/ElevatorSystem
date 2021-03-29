@@ -1,13 +1,13 @@
 package org.pinowski.elevatorsystem
 
 /**
-  * Class implementing simplest elevator system
-  *
-  * Every call is put at the end of goals list of some elevator
-  * @param els vector of elevators' states
-  * @param nextElevatorToUse internal parameter telling which elevator
-  * should be given next task from callFromLevel
-  */
+ * Class implementing simplest elevator system
+ *
+ * Every call is put at the end of goals list of some elevator
+ * @param els vector of elevators' states
+ * @param nextElevatorToUse internal parameter telling which elevator
+ * should be given next task from callFromLevel
+ */
 class SimpleElevatorSystem(
                             els: Vector[Elevator],
                             nextElevatorToUse: Int = 0

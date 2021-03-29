@@ -4,7 +4,7 @@ import scala.collection.immutable.Queue
 
 case class Elevator(
                      level: Int,
-                     goals: Queue[Int] = Queue.empty
+                     goals: Vector[Int] = Vector.empty
                    ) {
   def step(): Elevator = {
     goals match {
@@ -14,5 +14,5 @@ case class Elevator(
     }
   }
 
-  def updatedGoals(newGoals: Queue[Int]): Elevator = Elevator(level, newGoals)
+  def updatedGoals(newGoals: Vector[Int]): Elevator = Elevator(level, newGoals)
 }
