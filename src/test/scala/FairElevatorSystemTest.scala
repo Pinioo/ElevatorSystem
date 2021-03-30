@@ -54,4 +54,19 @@ class FairElevatorSystemTest extends AnyFlatSpec with matchers.should.Matchers {
       Elevator(8, Vector())
     )
   }
+
+  it should "update goals of some elevator after call from level if there is a suitable one" in {
+    FairElevatorSystem(Vector(
+      Elevator(12, Vector(10, 8)),
+      Elevator(5, Vector(11, 12)),
+      Elevator(13, Vector())
+    )).callFromLevel(9, ElevatorDown)
+      .callFromLevel(20, ElevatorUp)
+      .callFromLevel(5, ElevatorUp)
+      .elevators should contain theSameElementsInOrderAs Vector(
+        Elevator(12, Vector(10, 9, 8)),
+        Elevator(5, Vector(5, 11, 12)),
+        Elevator(13, Vector(20))
+    )
+  }
 }

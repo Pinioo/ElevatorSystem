@@ -4,7 +4,7 @@ import scala.io.StdIn
 
 case object ElevatorSystemSimulation extends App{
   var system: ElevatorSystem = SimpleElevatorSystem(
-    Vector.fill(5)(Elevator(0))
+    Vector.fill(5)(Elevator(0, Vector.empty))
   )
   Iterator
     .continually(StdIn.readLine())
