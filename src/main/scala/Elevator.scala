@@ -7,10 +7,24 @@ case class Elevator(
                      goals: Vector[Int]
                    ) {
   def step(): Elevator = {
-    goals match {
-      case this.level +: gs => Elevator(level, gs)
-      case g +: _ =>           Elevator(level + (g - level).sign, goals)
-      case _ =>                this
+    (direction, goals) match {
+      case (_, this.level +: gs) => Elevator(level, gs)
+      case (Some(ElevatorUp), _) => Elevator(level + 1, goals)
+      case (Some(ElevatorDown), _) => Elevator(level - 1, goals)
+      case _ => this
+    }
+  }
+
+  def direction: Option[ElevatorDirection] = {
+    val directionSign = goals match {
+      case this.level +: g +: _ => (g - level).sign
+      case g +: _ => (g - level).sign
+      case _ => 0
+    }
+    directionSign match {
+      case -1 => Option(ElevatorDown)
+      case 1 => Option(ElevatorUp)
+      case _ => None
     }
   }
 
