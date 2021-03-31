@@ -1,5 +1,6 @@
 package org.pinowski.elevatorsystem
 
+import scala.collection.View.Empty
 import scala.collection.immutable.TreeSet
 
 class FairElevatorSystem(
@@ -8,48 +9,48 @@ class FairElevatorSystem(
                           downCalls: TreeSet[Int] = TreeSet.empty(Ordering.Int.reverse),
                           upCalls: TreeSet[Int] = TreeSet.empty,
                         ) extends ElevatorSystem(els) {
+  def elevatorOrdering(level: Int): Ordering[(Elevator, Int)] = Ordering.by{
+    case (el, _) => (el.level - level).abs
+  }
+
   override def callFromLevel(level: Int, direction: ElevatorDirection): ElevatorSystem = {
-    val elevatorOption: Option[Elevator] = direction match {
+    val elevatorsInDirection = direction match {
       case ElevatorDown =>
-        (elevatorsGoingDown.filter(el => el.level >= level) ++ elevatorsNotGoing)
-          .minOption(Ordering.by[Elevator, Int](el => (el.level - level).abs))
+        elevatorsGoingDown.filter { case (el, _) => el.level >= level }
       case ElevatorUp =>
-        (elevatorsGoingUp.filter(el => el.level <= level) ++ elevatorsNotGoing)
-          .minOption(Ordering.by[Elevator, Int](el => (el.level - level).abs))
+        elevatorsGoingUp.filter { case (el, _) => el.level <= level }
     }
 
-    elevatorOption match {
-      case Some(elevator) =>
-        val elevatorIndex = elevators
-          .zipWithIndex
-          .find{case (el, _) => el == elevator}
-          .map{case (_, ind) => ind}
-          .get
+    val elevatorWithIndexOption = (elevatorsInDirection ++ elevatorsNotGoing)
+      .minOption(elevatorOrdering(level))
+
+    elevatorWithIndexOption match {
+      case Some((elevator, index)) =>
         val newGoals = direction match {
           case ElevatorDown =>
-            val elevatorsAbove = elevator
+            val levelsAbove = elevator
               .goals
               .takeWhile(_ > level)
-            val elevatorsBelow = elevator
+            val levelsBelow = elevator
               .goals
               .dropWhile(_ >= level)
-            elevatorsAbove ++ Vector(level) ++ elevatorsBelow
+            levelsAbove ++ Vector(level) ++ levelsBelow
           case ElevatorUp =>
-            val elevatorsBelow = elevator
+            val levelsBelow = elevator
               .goals
               .takeWhile(_ < level)
-            val elevatorsAbove = elevator
+            val levelsAbove = elevator
               .goals
               .dropWhile(_ <= level)
-            elevatorsBelow ++ Vector(level) ++ elevatorsAbove
+            levelsBelow ++ Vector(level) ++ levelsAbove
         }
-        FairElevatorSystem(elevators.updated(elevatorIndex, elevator.updatedGoals(newGoals)), elevatorCalls, downCalls, upCalls)
+        this.updatedElevator(index, elevator.updatedGoals(newGoals))
       case None =>
         direction match {
           case ElevatorDown =>
-            FairElevatorSystem(elevators, elevatorCalls, downCalls + level, upCalls)
+            this.updatedDownCalls(downCalls + level)
           case ElevatorUp =>
-            FairElevatorSystem(elevators, elevatorCalls, downCalls, upCalls + level)
+            this.updatedUpCalls(upCalls + level)
         }
     }
 
@@ -60,11 +61,11 @@ class FairElevatorSystem(
     elevator.direction match {
       case None =>
         val newGoals = elevator.goals :+ level
-        FairElevatorSystem(elevators.updated(elevatorIndex, elevator.updatedGoals(newGoals)), elevatorCalls, downCalls, upCalls)
+        this.updatedElevator(elevatorIndex, elevator.updatedGoals(newGoals))
 
       case Some(ElevatorUp) if (level >= elevator.level) =>
         val newGoals = elevator.goals.takeWhile(_ < level) ++ Vector(level) ++ elevator.goals.dropWhile(_ <= level)
-        FairElevatorSystem(elevators.updated(elevatorIndex, elevator.updatedGoals(newGoals)), elevatorCalls, downCalls, upCalls)
+        this.updatedElevator(elevatorIndex, elevator.updatedGoals(newGoals))
 
       case Some(ElevatorUp) if (level < elevator.level) =>
         val currentCallsOption = elevatorCalls(elevatorIndex)
@@ -72,11 +73,11 @@ class FairElevatorSystem(
           case Some(calls) => Option(calls + level)
           case None => Option(TreeSet(level)(Ordering.Int.reverse))
         }
-        FairElevatorSystem(elevators, elevatorCalls.updated(elevatorIndex, newCallsOption), downCalls, upCalls)
+        this.updatedElevatorCall(elevatorIndex, newCallsOption)
 
       case Some(ElevatorDown) if (level <= elevator.level) =>
         val newGoals = elevator.goals.takeWhile(_ > level) ++ Vector(level) ++ elevator.goals.dropWhile(_ >= level)
-        FairElevatorSystem(elevators.updated(elevatorIndex, elevator.updatedGoals(newGoals)), elevatorCalls, downCalls, upCalls)
+        this.updatedElevator(elevatorIndex, elevator.updatedGoals(newGoals))
 
       case Some(ElevatorDown) if (level > elevator.level) =>
         val currentCallsOption = elevatorCalls(elevatorIndex)
@@ -84,15 +85,15 @@ class FairElevatorSystem(
           case Some(calls) => Option(calls + level)
           case None => Option(TreeSet(level))
         }
-        FairElevatorSystem(elevators, elevatorCalls.updated(elevatorIndex, newCallsOption), downCalls, upCalls)
+        this.updatedElevatorCall(elevatorIndex, newCallsOption)
     }
   }
 
   override def step(): ElevatorSystem = {
     FairElevatorSystem(elevators.map(_.step()), elevatorCalls, downCalls, upCalls)
       .handleElevatorCalls().asInstanceOf[FairElevatorSystem]
-      .handleDownCalls().asInstanceOf[FairElevatorSystem]
-      .handleUpCalls()
+      .handleDownCalls.asInstanceOf[FairElevatorSystem]
+      .handleUpCalls
   }
 
   private def handleElevatorCalls(): ElevatorSystem = {
@@ -104,43 +105,92 @@ class FairElevatorSystem(
         }
     }
     newElevatorsAndCalls.unzip match {
-      case (els, elsCalls) => FairElevatorSystem(els, elsCalls, downCalls, upCalls)
+      case (els, elsCalls) => this
+        .updatedElevators(els)
+        .updatedElevatorCalls(elsCalls)
     }
   }
 
-  private def handleUpCalls(): ElevatorSystem = {
-    this
-  }
+  private def handleUpCalls: ElevatorSystem =
+    upCalls.toSeq match {
+      case firstLevel +: _ =>
+        val newElevatorWithIndexOption = elevatorsNotGoing
+          .minOption(elevatorOrdering(firstLevel))
+          .map{
+            case (el, index) => (el.updatedGoals(upCalls.toVector), index)
+          }
+        newElevatorWithIndexOption match {
+          case Some((newElevator, index)) =>
+            this
+              .updatedElevator(index, newElevator)
+              .updatedUpCalls(TreeSet.empty[Int])
+          case None => this
+        }
+      case _ => this
+    }
 
-  private def handleDownCalls(): ElevatorSystem = {
-    this
-  }
+  private def handleDownCalls: ElevatorSystem =
+    downCalls.toSeq match {
+      case firstLevel +: _ =>
+        val newElevatorWithIndexOption = elevatorsNotGoing
+          .minOption(elevatorOrdering(firstLevel))
+          .map {
+            case (el, index) => (el.updatedGoals(downCalls.toVector), index)
+          }
+        newElevatorWithIndexOption match {
+          case Some((newElevator, index)) => this
+            .updatedElevator(index, newElevator)
+            .updatedDownCalls(TreeSet.empty(Ordering.Int.reverse))
+          case None => this
+        }
+      case _ => this
+    }
 
-  val elevatorsGoingDown: Vector[Elevator] =
-    elevators.filter{
-      _.direction match {
+  def updatedElevators(newElevators: Vector[Elevator]): FairElevatorSystem =
+    FairElevatorSystem(newElevators, elevatorCalls, downCalls, upCalls)
+
+  def updatedElevator(elevatorIndex: Int, newElevator: Elevator): FairElevatorSystem =
+    this.updatedElevators(elevators.updated(elevatorIndex, newElevator))
+
+  def updatedElevatorCalls(newElevatorCalls: Vector[Option[TreeSet[Int]]]): FairElevatorSystem =
+    FairElevatorSystem(elevators, newElevatorCalls, downCalls, upCalls)
+
+  def updatedElevatorCall(elevatorCallsIndex: Int, newElevatorCalls: Option[TreeSet[Int]]): FairElevatorSystem =
+    this.updatedElevatorCalls(elevatorCalls.updated(elevatorCallsIndex, newElevatorCalls))
+
+  def updatedDownCalls(newDownCalls: TreeSet[Int]): FairElevatorSystem =
+    FairElevatorSystem(elevators, elevatorCalls, newDownCalls, upCalls)
+
+  def updatedUpCalls(newUpCalls: TreeSet[Int]): FairElevatorSystem =
+    FairElevatorSystem(elevators, elevatorCalls, downCalls, newUpCalls)
+
+  val elevatorsGoingDown: Vector[(Elevator, Int)] =
+    elevators.zipWithIndex.filter{
+      case (el, _) => el.direction match {
         case Some(ElevatorDown) => true
         case _ => false
       }
     }
 
-  val elevatorsGoingUp: Vector[Elevator] =
-    elevators.filter{
-      _.direction match {
+  val elevatorsGoingUp: Vector[(Elevator, Int)] =
+    elevators.zipWithIndex.filter{
+      case (el, _) => el.direction match {
         case Some(ElevatorUp) => true
         case _ => false
       }
     }
 
-  val elevatorsNotGoing: Vector[Elevator] =
-    elevators.filter{
-      _.direction match {
+  val elevatorsNotGoing: Vector[(Elevator, Int)] =
+    elevators.zipWithIndex.filter{
+      case (el, _) => el.direction match {
         case None => true
         case _ => false
       }
     }
 
   def elevatorCalls(): Vector[Option[TreeSet[Int]]] = elevatorCalls
+  def upCalls(): TreeSet[Int] = upCalls
+  def downCalls(): TreeSet[Int] = downCalls
 }
 
 object FairElevatorSystem {

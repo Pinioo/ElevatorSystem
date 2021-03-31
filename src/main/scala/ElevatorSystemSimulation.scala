@@ -3,7 +3,7 @@ package org.pinowski.elevatorsystem
 import scala.io.StdIn
 
 case object ElevatorSystemSimulation extends App{
-  var system: ElevatorSystem = SimpleElevatorSystem(
+  var system: ElevatorSystem = FairElevatorSystem(
     Vector.fill(5)(Elevator(0, Vector.empty))
   )
   Iterator
@@ -11,7 +11,6 @@ case object ElevatorSystemSimulation extends App{
     .takeWhile(_ != "q")
     .foreach{
       input =>
-        println(system.elevators.map(_.level).mkString(" | "))
         system = input.trim.toLowerCase match {
           case s"c $level $direction" =>     // Call From Level
             callFromFloorInputParser(level, direction)
@@ -37,6 +36,8 @@ case object ElevatorSystemSimulation extends App{
             println("Incorrect Input")
             system
         }
+        println(system.elevators.map(_.level).mkString(" | "))
+
     }
 
   def callFromFloorInputParser(levelStr: String, directionStr: String): Option[(Int, ElevatorDirection)] = {

@@ -30,16 +30,16 @@ class FairElevatorSystemTest extends AnyFlatSpec with matchers.should.Matchers {
   )
 
   "FairElevatorSystem" should "recognize elevators going up" in {
-    testSystem.elevatorsGoingUp should contain theSameElementsAs elevatorUpFamily
+    testSystem.elevatorsGoingUp.map(_._1) should contain theSameElementsAs elevatorUpFamily
   }
 
 
   it should "recognize elevators going down" in {
-    testSystem.elevatorsGoingDown should contain theSameElementsAs elevatorDownFamily
+    testSystem.elevatorsGoingDown.map(_._1) should contain theSameElementsAs elevatorDownFamily
   }
 
   it should "recognize elevators not going" in {
-    testSystem.elevatorsNotGoing should contain theSameElementsAs elevatorStaysFamily
+    testSystem.elevatorsNotGoing.map(_._1) should contain theSameElementsAs elevatorStaysFamily
   }
 
   it should "make a proper step" in {
@@ -109,31 +109,48 @@ class FairElevatorSystemTest extends AnyFlatSpec with matchers.should.Matchers {
     )
   }
 
-  it should "apply elevator calls from queue if elevator stopped" in {
+  it should "apply elevator calls from queue and clear queue if elevator stopped" in {
     val system = FairElevatorSystem(
       Vector(
-        Elevator(12, Vector(10, 8)),
-        Elevator(5, Vector(11, 12)),
         Elevator(13, Vector(13))
       ),
       Vector(
-        None,
-        None,
         Option(TreeSet(10, 8)(Ordering.Int.reverse))
       )
     ).step()
       .asInstanceOf[FairElevatorSystem]
 
     system.elevators should contain theSameElementsInOrderAs Vector(
-      Elevator(11, Vector(10, 8)),
-      Elevator(6, Vector(11, 12)),
       Elevator(13, Vector(10, 8))
     )
 
     system.elevatorCalls should contain theSameElementsInOrderAs Vector(
-      None,
-      None,
       None
     )
   }
+
+  it should "apply queued up and down calls if some elevators stopped and clear queues" in {
+    val system = FairElevatorSystem(
+      Vector(
+        Elevator(5, Vector()),
+        Elevator(13, Vector())
+      ),
+      Vector(
+        None,
+        None
+      ),
+      TreeSet(8, 3, 2)(Ordering.Int.reverse),
+      TreeSet(4, 10)
+    ).step()
+      .asInstanceOf[FairElevatorSystem]
+
+    system.elevators should contain theSameElementsInOrderAs Vector(
+      Elevator(5, Vector(8, 3, 2)),
+      Elevator(13, Vector(4, 10))
+    )
+
+    system.upCalls shouldBe empty
+    system.downCalls shouldBe empty
+  }
+
 }
