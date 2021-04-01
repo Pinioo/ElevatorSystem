@@ -19,4 +19,10 @@ object ElevatorDirection {
     case "d" => Option(ElevatorDown)
     case _   => None
   }
+
+  def direction(from: Int, to: Int): Option[ElevatorDirection] = (to - from).sign match {
+    case -1 => Option(ElevatorDown)
+    case 1 => Option(ElevatorUp)
+    case _ => None
+  }
 }
